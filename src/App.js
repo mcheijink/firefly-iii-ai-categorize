@@ -101,9 +101,10 @@ export default class App {
         if (req.body.content.transactions[0].type !== "withdrawal") {
             throw new WebhookException("content.transactions[0].type has to be 'withdrawal'. Transaction will be ignored.");
         }
-
-        if (req.body.content.transactions[0].category_id !== null) {
-            throw new WebhookException("content.transactions[0].category_id is already set. Transaction will be ignored.");
+        
+        const catId = req.body.content.transactions[0].category_name;
+        if (catId !== null && catId !== "") {
+            throw new WebhookException("content.transactions[0].category_name is already set. Transaction will be ignored.");
         }
 
         if (!req.body.content.transactions[0].description) {
