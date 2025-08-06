@@ -54,9 +54,11 @@ export default class OpenAiService {
     }
 
     #generatePrompt(categories, destinationName, description) {
-        return `Given i want to categorize transactions on my bank account into this categories: ${categories.join(", ")}
-In which category would a transaction from "${destinationName}" with the subject "${description}" fall into?
-Just output the name of the category. Does not have to be a complete sentence.`;
+        return `Given i want to categorize transactions on my bank account into this categories: ${categories.join(", ")}. 
+When categorizing, focus primarily on the merchant name and known businesses.
+Avoid categorizing based on payment methods like "Apple Pay" or terms like "Card sequence"
+Based on this, in which category would the following transaction fall: "${description}" from "${destinationName}"
+Just output the name of the correct category.`;
     }
 }
 
