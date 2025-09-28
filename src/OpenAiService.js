@@ -15,9 +15,9 @@ export default class OpenAiService {
         this.#openAi = new OpenAIApi(configuration)
     }
 
-    async classify(categories, destinationName, description) {
+    async classify(categories, transaction) {
         try {
-            const prompt = this.#generatePrompt(categories, destinationName, description);
+            const prompt = this.#generatePrompt(categories, transaction.destination_name, transaction.description);
 
             const response = await this.#openAi.createCompletion({
                 model: this.#model,
