@@ -82,12 +82,18 @@ export default class App {
     #handleWebhook(req, res) {
         // TODO: validate auth
 
-        if (req.body?.trigger !== "STORE_TRANSACTION") {
-            throw new WebhookException("trigger is not STORE_TRANSACTION. Request will not be processed");
+        const trigger = req.body?.trigger;
+        const allowedTriggers = new Set([
+            "STORE_TRANSACTION",
+            "AFTER_TRANSACTION_CREATE",
+        ]);
+
+        if (!allowedTriggers.has(trigger)) {
+            throw new WebhookException("trigger is not STORE_TRANSACTION or AFTER_TRANSACTION_CREATE. Request will not be processed");
         }
 
         if (req.body?.response !== "TRANSACTIONS") {
-            throw new WebhookException("trigger is not TRANSACTION. Request will not be processed");
+            throw new WebhookException("response is not TRANSACTIONS. Request will not be processed");
         }
 
         if (!req.body?.content?.id) {
