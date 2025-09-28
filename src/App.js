@@ -56,6 +56,9 @@ export default class App {
             this.#express.use('/', express.static('public'))
         }
 
+        this.#express.get('/webhook', (req, res) => {
+            res.status(200).send('Webhook endpoint is ready to receive POST requests.');
+        });
         this.#express.post('/webhook', this.#onWebhook.bind(this))
 
         this.#server.listen(this.#PORT, async () => {
