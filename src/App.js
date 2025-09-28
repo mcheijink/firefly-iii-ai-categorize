@@ -1,7 +1,7 @@
 import express from "express";
 import {getConfigVariable} from "./util.js";
 import FireflyService from "./FireflyService.js";
-import OpenAiService from "./OpenAiService.js";
+import createLlmService from "./LlmServiceFactory.js";
 import {Server} from "socket.io";
 import * as http from "http";
 import Queue from "queue";
@@ -12,7 +12,7 @@ export default class App {
     #ENABLE_UI;
 
     #firefly;
-    #openAi;
+    #llmService;
 
     #server;
     #io;
@@ -29,7 +29,7 @@ export default class App {
 
     async run() {
         this.#firefly = new FireflyService();
-        this.#openAi = new OpenAiService();
+        this.#llmService = createLlmService();
 
         this.#queue = new Queue({
             timeout: 30 * 1000,
@@ -115,12 +115,16 @@ export default class App {
             throw new WebhookException("Missing content.transactions[0].destination_name");
         }
 
-        const destinationName = req.body.content.transactions[0].destination_name;
-        const description = req.body.content.transactions[0].description
+        const transaction = req.body.content.transactions[0];
+        const destinationName = transaction.destination_name;
+        const description = transaction.description
 
         const job = this.#jobList.createJob({
             destinationName,
-            description
+            description,
+            amount: transaction.amount,
+            currency: transaction.currency_code || transaction.foreign_currency_code,
+            date: transaction.date
         });
 
         this.#queue.push(async () => {
@@ -128,7 +132,7 @@ export default class App {
 
             const categories = await this.#firefly.getCategories();
 
-            const {category, prompt, response} = await this.#openAi.classify(Array.from(categories.keys()), destinationName, description)
+            const {category, prompt, response} = await this.#llmService.classify(Array.from(categories.keys()), transaction)
 
             const newData = Object.assign({}, job.data);
             newData.category = category;
