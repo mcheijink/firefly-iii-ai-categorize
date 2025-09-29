@@ -191,7 +191,7 @@
 
         const durations = finishedJobs
             .slice(0, 5)
-            .map(job => new Date(job.finishedAt) - new Date(job.created))
+            .map(job => job.startedAt ? new Date(job.finishedAt) - new Date(job.startedAt) : NaN)
             .filter(duration => Number.isFinite(duration) && duration >= 0);
 
         const averageDuration = durations.length
