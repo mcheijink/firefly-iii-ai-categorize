@@ -32,6 +32,24 @@
             padding: 24px;
         }
 
+        .overview {
+            border: solid 1px;
+            border-radius: 5px;
+            margin-bottom: 2em;
+            padding: 24px;
+            background: #f8f8f8;
+        }
+
+        .overview ul {
+            margin: 0.5em 0 0 1.25em;
+        }
+
+        .overview__footnote {
+            margin-top: 0.75em;
+            font-size: 0.875em;
+            color: #555;
+        }
+
         pre {
             padding: 7px;
             background: #eeeeee;
@@ -43,8 +61,12 @@
 <div class="container">
     <h1>Firefly III AI Categorizer</h1>
     <section>
+        <h2>Overview</h2>
+        <div id="overview"></div>
+    </section>
+    <section>
         <h2>Jobs</h2>
-        <div id="mount"></div>
+        <div id="jobs"></div>
 <!--        <article class="job">-->
 <!--            <div><strong>Status:</strong> <span>queued</span></div>-->
 <!--            <div><strong>Created:</strong>-->
@@ -70,70 +92,176 @@
 
 <script src="/socket.io/socket.io.js"></script>
 <script>
-    let socket = io();
+    const socket = io();
 
-    const mount = document.getElementById('mount');
+    const overviewMount = document.getElementById('overview');
+    const jobsMount = document.getElementById('jobs');
+
+    const state = {
+        jobs: []
+    };
+
+    const statusOrder = [
+        {key: 'queued', label: 'Queued'},
+        {key: 'in_progress', label: 'In progress'},
+        {key: 'finished', label: 'Finished'}
+    ];
+
+    const dateTimeFormatter = new Intl.DateTimeFormat(undefined, {
+        dateStyle: 'medium',
+        timeStyle: 'medium'
+    });
+
+    const escape = (value) => {
+        if (value === null || value === undefined) {
+            return '';
+        }
+
+        return String(value)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    };
+
+    const formatDuration = (ms) => {
+        if (!Number.isFinite(ms)) {
+            return '';
+        }
+
+        const totalSeconds = Math.max(0, Math.round(ms / 1000));
+        const hours = Math.floor(totalSeconds / 3600);
+        const minutes = Math.floor((totalSeconds % 3600) / 60);
+        const seconds = totalSeconds % 60;
+
+        const parts = [];
+        if (hours) {
+            parts.push(`${hours}h`);
+        }
+        if (minutes) {
+            parts.push(`${minutes}m`);
+        }
+        if (!parts.length || seconds) {
+            parts.push(`${seconds}s`);
+        }
+
+        return parts.join(' ');
+    };
+
+    const setJobs = (jobs) => {
+        state.jobs = jobs
+            .slice()
+            .sort((a, b) => new Date(b.created) - new Date(a.created));
+
+        renderOverview();
+        renderJobs();
+    };
 
     socket.on('jobs', jobs => {
         console.log('jobs', jobs);
-
-        jobs.sort((a, b) => {
-            return new Date(b.created) - new Date(a.created);
-        })
-
-        jobs.forEach(job => {
-            const element = document.createElement('div');
-            element.innerHTML = renderJob(job);
-            mount.appendChild(element)
-        });
+        setJobs(jobs);
     });
 
-    socket.on('job created', e => {
-        console.log('job created', e);
-        const element = document.createElement('div');
-        element.innerHTML = renderJob(e.job);
-        mount.prepend(element);
-    })
+    socket.on('job created', event => {
+        console.log('job created', event);
+        setJobs(event.jobs ?? state.jobs);
+    });
 
-    socket.on('job updated', e => {
-        console.log('job updated', e)
+    socket.on('job updated', event => {
+        console.log('job updated', event);
+        setJobs(event.jobs ?? state.jobs);
+    });
 
-        const element = document.createElement('div');
-        element.innerHTML = renderJob(e.job);
+    const renderOverview = () => {
+        if (!state.jobs.length) {
+            overviewMount.innerHTML = '<article class="overview"><div>No tasks yet.</div></article>';
+            return;
+        }
 
-        const oldElement = document.querySelector(`[data-job-id="${e.job.id}"]`);
-        oldElement.before(element);
-        oldElement.remove();
-    })
+        const statusCounts = state.jobs.reduce((acc, job) => {
+            const status = job.status || 'queued';
+            acc[status] = (acc[status] || 0) + 1;
+            return acc;
+        }, {});
+
+        const finishedJobs = state.jobs
+            .filter(job => job.status === 'finished' && job.finishedAt)
+            .sort((a, b) => new Date(b.finishedAt) - new Date(a.finishedAt));
+
+        const durations = finishedJobs
+            .slice(0, 5)
+            .map(job => job.startedAt ? new Date(job.finishedAt) - new Date(job.startedAt) : NaN)
+            .filter(duration => Number.isFinite(duration) && duration >= 0);
+
+        const averageDuration = durations.length
+            ? durations.reduce((sum, duration) => sum + duration, 0) / durations.length
+            : null;
+
+        const remainingJobs = state.jobs.filter(job => job.status !== 'finished').length;
+        const estimatedRemaining = averageDuration !== null ? averageDuration * remainingJobs : null;
+
+        const breakdown = statusOrder
+            .map(({key, label}) => `<li>${label}: ${statusCounts[key] || 0}</li>`)
+            .join('');
+
+        overviewMount.innerHTML = `
+            <article class="overview">
+                <div><strong>Total tasks:</strong> <span>${state.jobs.length}</span></div>
+                <div><strong>Status breakdown:</strong>
+                    <ul>
+                        ${breakdown}
+                    </ul>
+                </div>
+                <div><strong>Estimated time remaining:</strong>
+                    <span>${estimatedRemaining !== null ? formatDuration(estimatedRemaining) : 'Not enough data yet'}</span>
+                </div>
+                ${averageDuration !== null ? `<div class="overview__footnote">Based on last ${durations.length} completed tasks (avg ${formatDuration(averageDuration)} each).</div>` : ''}
+            </article>
+        `;
+    };
+
+    const renderJobs = () => {
+        if (!state.jobs.length) {
+            jobsMount.innerHTML = '<p>No jobs yet.</p>';
+            return;
+        }
+
+        jobsMount.innerHTML = state.jobs.map(job => renderJob(job)).join('');
+    };
 
     const renderJob = (job) => {
-        return `<article class="job" data-job-id="${job.id}">
-            <div><strong>ID:</strong> <span>${job.id}</span></div>
-            <div><strong>Status:</strong> <span>${job.status}</span></div>
+        const created = job.created ? dateTimeFormatter.format(new Date(job.created)) : '';
+        const category = job.data?.category
+            ? escape(job.data.category)
+            : '<em>Not yet classified</em>';
+
+        return `<article class="job" data-job-id="${escape(job.id)}">
+            <div><strong>ID:</strong> <span>${escape(job.id)}</span></div>
+            <div><strong>Status:</strong> <span>${escape(job.status)}</span></div>
             <div><strong>Created:</strong>
-                <time>${Intl.DateTimeFormat(undefined, {
-            dateStyle: 'medium',
-            timeStyle: 'medium'
-        }).format(new Date(job.created))}</time>
+                <time>${created}</time>
             </div>
-            <div><strong>Destination name:</strong> <span>${job.data?.destinationName || ''}</span></div>
-            <div><strong>Description:</strong> <span>${job.data?.description || ''}</span>
-            <div><strong>Guessed category:</strong> <span>${job.data?.category ? job.data.category : '<em>Not yet classified</em>'}</span>
-            </div>
+            <div><strong>Destination name:</strong> <span>${escape(job.data?.destinationName || '')}</span></div>
+            <div><strong>Description:</strong> <span>${escape(job.data?.description || '')}</span></div>
+            <div><strong>Guessed category:</strong> <span>${category}</span></div>
             ${ job.data?.prompt ? `<div><strong>Prompt:</strong><br>
                 <details>
                     <summary>Show</summary>
-                    <pre>${job.data.prompt}</pre>
+                    <pre>${escape(job.data.prompt)}</pre>
                 </details>
             </div>` : ''}
-            ${ job.data?.response ? `<div><strong>Open AI's response:</strong>
+            ${ job.data?.response ? `<div><strong>Model response:</strong>
                  <details>
                     <summary>Show</summary>
-                    <pre>${job.data.response}</pre>
+                    <pre>${escape(job.data.response)}</pre>
                  </details>
             </div>` : ''}
-        </article>`
-    }
+        </article>`;
+    };
+
+    renderOverview();
+    renderJobs();
 </script>
 </body>
 </html>

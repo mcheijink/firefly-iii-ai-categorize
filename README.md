@@ -1,7 +1,7 @@
 # Firefly III AI categorization
 
 This project allows you to automatically categorize your expenses in [Firefly III](https://www.firefly-iii.org/) by
-using OpenAI.
+using OpenAI or a self-hosted Ollama model.
 
 ## Please fork me
 Unfortunately i am not able to invest more time into maintaining this project. 
@@ -12,10 +12,10 @@ Feel free to fork it and create a PR that adds a link to your fork in the README
 
 It provides a webhook that you can set up to be called every time a new expense is added.
 
-It will then generate a prompt for OpenAI, including your existing categories, the recipient and the description of the
-transaction.
+It will then generate a prompt for the configured Large Language Model (LLM), including your existing categories, the
+recipient and the description of the transaction.
 
-OpenAI will, based on that prompt, guess the category for the transaction.
+The LLM will, based on that prompt, guess the category for the transaction.
 
 If it is one of your existing categories, the tool will set the category on the transaction and also add a tag to the
 transaction.
@@ -24,13 +24,22 @@ If it cannot detect the category, it will not update anything.
 
 ## Privacy
 
-Please note that some details of the transactions will be sent to OpenAI as information to guess the category.
+Please note that some details of the transactions will be sent to the LLM as information to guess the category.
 
-These are:
+When using the OpenAI integration, the following fields are shared:
 
 - Transaction description
 - Name of transaction destination account
 - Names of all categories
+
+When using a self-hosted Ollama instance the following additional information is shared to improve the quality of the
+classification:
+
+- Transaction amount and currency
+- Transaction date
+- Source account name (if available)
+- Existing notes, payment references, linked bill and budget names
+- Tags already attached to the transaction
 
 ## Installation
 
@@ -45,9 +54,10 @@ like Notepad++ or Visual Studio Code to copy-and-paste it.
 ![Step 2](docs/img/pat2.png)
 ![Step 3](docs/img/pat3.png)
 
-### 2. Get an OpenAI API Key
+### 2. Choose an LLM provider
 
-The project needs to be configured with your OpenAI account's secret key.
+By default the application uses OpenAI. Follow the steps below to obtain an API key if you want to keep using the hosted
+OpenAI service.
 
 - Sign up for an account by going to the OpenAI website (https://platform.openai.com)
 - Once an account is created, visit the API keys page at https://platform.openai.com/account/api-keys.
@@ -63,6 +73,10 @@ payment details to begin interacting with the API for the first time.
 After that you have to enable billing in your account.
 
 Tip: Make sure to set budget limits to prevent suprises at the end of the month.
+
+If you prefer to use a self-hosted model, install [Ollama](https://ollama.com) on a machine you control and pull your
+preferred model (for example `gpt-oss:20b`). Set the environment variable `LLM_PROVIDER=ollama` and optionally adjust
+`OLLAMA_URL` (defaults to `http://localhost:11434`) and `OLLAMA_MODEL` (defaults to `gpt-oss:20b`).
 
 ### 3. Start the application via Docker
 
@@ -83,6 +97,10 @@ services:
       FIREFLY_URL: "https://firefly.example.com"
       FIREFLY_PERSONAL_TOKEN: "eyabc123..."
       OPENAI_API_KEY: "sk-abc123..."
+#     Uncomment the lines below to use a self-hosted Ollama instance instead of OpenAI
+#     LLM_PROVIDER: "ollama"
+#     OLLAMA_URL: "http://ollama:11434"
+#     OLLAMA_MODEL: "gpt-oss:20b"
 ```
 
 Make sure to set the environment variables correctly.
@@ -152,7 +170,10 @@ If you have to run the application on a different port than the default port `30
 
 - `FIREFLY_URL`: The URL to your Firefly III instance. Example: `https://firefly.example.com`. (required)
 - `FIREFLY_PERSONAL_TOKEN`: A Firefly III Personal Access Token. (required)
-- `OPENAI_API_KEY`: The OpenAI API Key to authenticate against OpenAI. (required)
+- `OPENAI_API_KEY`: The OpenAI API Key to authenticate against OpenAI. (Required when `LLM_PROVIDER=openai`)
+- `LLM_PROVIDER`: Which LLM backend to use. Supported values: `openai` (default) or `ollama`.
+- `OLLAMA_URL`: Base URL of the Ollama service when `LLM_PROVIDER=ollama`. (Default: `http://localhost:11434`)
+- `OLLAMA_MODEL`: Model name to use with Ollama when `LLM_PROVIDER=ollama`. (Default: `gpt-oss:20b`)
 - `ENABLE_UI`: If the user interface should be enabled. (Default: `false`)
 - `FIREFLY_TAG`: The tag to assign to the processed transactions. (Default: `AI categorized`)
 - `PORT`: The port where the application listens. (Default: `3000`)

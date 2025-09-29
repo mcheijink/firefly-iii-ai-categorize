@@ -24,6 +24,8 @@ export default class JobList {
             id,
             created,
             status: "queued",
+            startedAt: null,
+            finishedAt: null,
             data,
         }
 
@@ -42,12 +44,14 @@ export default class JobList {
     setJobInProgress(id) {
         const job = this.#jobs.get(id);
         job.status = "in_progress";
+        job.startedAt = new Date();
         this.#eventEmitter.emit('job updated', {job, jobs: Array.from(this.#jobs.values())});
     }
 
     setJobFinished(id) {
         const job = this.#jobs.get(id);
         job.status = "finished";
+        job.finishedAt = new Date();
         this.#eventEmitter.emit('job updated', {job, jobs: Array.from(this.#jobs.values())});
     }
 }
